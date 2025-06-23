@@ -6,3 +6,15 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.5.40", features = ["derive"] }
 regex = "1.11.1"
+pprof = { version = "0.13", features = ["flamegraph", "protobuf"] }
+
+[profile.release-with-debug] # For usage with pprof
+inherits = "release"
+debug = true          # Required for symbols
+lto = false           # Don't link-time optimize everything out
+codegen-units = 1     # Better inlining visibility
+opt-level = 3         # Still keep it fast
+
+[features]
+default = []
+timing = []
