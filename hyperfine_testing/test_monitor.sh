@@ -1,0 +1,1 @@
+../target/release/stream-monitor -- $1
