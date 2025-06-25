@@ -34,7 +34,7 @@ fn basic_regex_fail() {
 #[test]
 fn complex_regex_match() {
     let command = cmd_vec("ls -l");
-    let pattern = wrap_pattern(r"(total [0-9]+)|([drwxr-]+ +[0-9]+ +[^ ]+ +[^ ]+ +[0-9]+ +[^ ]+ +[0-9]+ +[a-zA-Z]+ +[0-9]+ + [0-9:]+ +.+)");
+    let pattern = wrap_pattern(r"(total [0-9]+)|([drwxr@-]+ +[0-9]+ +[^ ]+ +[^ ]+ +[0-9]+ +[a-zA-Z]+ +[0-9]+ +[0-9:]+ +.+)");
     monitor(command, Option::None, pattern); //Can't assert equivalence b/c variable output - not panicking should be good enough!
 }
 #[test]

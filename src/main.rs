@@ -32,6 +32,7 @@ mod tests;
 //Create external process execution monitor to halt entire script's execution upon monitor failure? 
 //Figure out how to handle errors that crop up from running input commands themselves
 //Monitor output from each individual member of a long piped command for more precise debugging?
+//  -  Related: Ensure system works with pipes (currently, it doesn't)... And redirects... If we don't want spin up a whole shell here, we're gonna need to get creative
 //Pipe validated output to stdout as received to maintain the benefits of a stream-based approach (instead of println!)
 
 #[derive(Parser, Debug)]
