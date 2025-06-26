@@ -1,21 +1,18 @@
-use regex::Regex;
+//use regex::Regex;
 use clap::Parser;
-//Low level shell command utilities
-use nix::unistd::{pipe, close, ForkResult, fork, execvp, Pid};
-use nix::sys::wait::waitpid;
-use nix::libc;
-//Standard library helpers
-use std::ffi::CString;
-use std::io::{ BufRead, BufReader, Read };
-use std::os::fd::AsRawFd;
-use std::fs::File;
+use regex_automata::{ dfa::{dense::DFA, Automaton}, Input };// MatchKind, util::start::Config };
+use atty::{self, Stream};
+use std::path::PathBuf;
+use std::io::{self, BufRead, BufReader};
 use std::process::exit;
-
-mod timer;
-use crate::timer::Timer;
+use std::fs::{ self, File };
 
 #[cfg(test)]
 mod tests;
+
+// mod timer;
+// use crate::timer::Timer;
+
 
 //OUTSTANDING TASKS/QUESTIONS
 //Test performance and speed up!
@@ -38,92 +35,110 @@ mod tests;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
+    ///File path to serialized DFA - if not specified, no_validation must be true
     #[arg(short, required(false))]
-    input_regex: Option<String>,
-
-    #[arg(short, required(false))]
-    output_regex: Option<String>,
-
-    #[arg()]
-    command_parts: Vec<String>
+    dfa_path: Option<PathBuf>,
+    ///No validation will be performed (DFA defaults to a .* matcher) - mainly exists for development purposes
+    #[arg(long, default_value_t=false)]
+    no_validation: bool,
+    ///File path to file containing input to check - if not specified, monitor will instead look to stdin
+    #[arg(required(false))]
+    input_file: Option<PathBuf>,
 }
 
 fn main() {
-    let _total_time = Timer::new("Total");
-    //Alert user of potential unintented functionality if no input/output types are specified
     let args = Args::parse();
-    match (&args.input_regex, &args.output_regex) { //I wish I could do this with if let but alas...
-        (Option::None, Option::None) => println!("Warning: no type specified for input or output of command, so no validation will take place"),
-        _ => {}
-    }
-    let validated_output = monitor(args.command_parts, args.input_regex, args.output_regex);
+    //Parse input stream object and DFA from arguments
+    let input_stream: Box<dyn BufRead> = match args.input_file {
+        Some(path) => { //Input file provided
+            let input_file = File::open(path).expect("DFA path invalid");
+            Box::new(BufReader::new(input_file))
+        },
+        None => { //No input file provided, default to stdin
+            if atty::is(Stream::Stdin) { //No input stream provided - is attached to interactive terminal
+                panic!("No input stream piped in or provided via file") 
+            } else { //Input stream being piped in - return that stream
+                Box::new(io::stdin().lock())
+            }
+        }
+    };
+    let dfa: Box<dyn Automaton> = match args.dfa_path {
+        Some(path) => { //Currenty only supported for DFA's built through regex_automata!
+            let dfa_bytes = fs::read(path).expect("Path to DFA invalid.");
+            let dfa = DFA::from_bytes(&dfa_bytes)
+                .expect("Unable to deserialize DFA. Ensure provided file is a serialized DFA build from regex_automata.")
+                .0.to_owned(); //Gets around borrow of dfa_bytes
+            Box::new(dfa)
+        },
+        None => {
+            if args.no_validation { Box::new(DFA::new(r".*").unwrap()) }
+            else { 
+                eprintln!("No DFA specified. Must either specify a DFA (via -d) or set --no-validation.");
+                exit(1)
+            }
+        }
+    };
+    //Validate the stream and print the output back to stdout (assuming the stream is valid)
+    let validated_output = validate_stream(input_stream, dfa);
     println!("{}", validated_output);
+    
 }
 
-/// Given a shell command (represented as a vector of Strings), ensures that the input to that command matches any
-/// specified regex ipattern (coming soon!) and that the output to that command matches any specified regex opattern,
-/// returning the command's output if both validations are satisfied and panicking if not.
-fn monitor(command: Vec<String>, _ipattern: Option<String>, opattern: Option<String>) -> String {
-    let _monitor_timer = Timer::new("Full Monitor");
-    //Run command and retrieve output stream
-    let _command_timer = Timer::new("Run Command");
-    let (mut buffed_stream, child_pid) = run_command(command);
-    drop(_command_timer);
-    //Validate output
-    let _validation_timer = Timer::new("Output Validation");
-    let output = if let Option::Some(opattern) = opattern { validate_stream(buffed_stream, opattern) } 
-    else { 
-        let mut output_buf = String::new();
-        buffed_stream.read_to_string(&mut output_buf).expect("Reading output buffer to a String failed");
-        output_buf
-    };
-    drop(_validation_timer);
-    waitpid(child_pid, None).unwrap();
+/// Given a stream and a DFA, walks the DFA over the stream, returning the entirety of the stream if it fully matches
+/// the DFA and panicking if it does not.
+fn validate_stream(stream: Box<dyn BufRead>, dfa: Box<dyn Automaton>) -> String {
+    let mut output = String::new();
+    for line in stream.lines() {
+        let line = line.expect("Error grabbing next line");
+        //let _state = dfa.start_state(&Config::new()).expect("Couldn't bring DFA to start state");
+        match dfa.try_search_fwd(&Input::new(&line.as_bytes())).expect("DFA search errored") {
+            Some(_mtch) => output += line.as_str(), 
+            //{
+            //     if mtch == HalfMatch::must(0, line.len()) { continue }
+            //     else { panic!("Only partial match...")}
+            // },
+            None => panic!("Validation failed.\nIncriminating line: {}", line)
+        }
+
+        // if let Some(offset) = result {
+        //     println!("MATCH @ {}: {}", offset, line);
+        // }
+    }
     output
 }
 
-/// Runs the input command via fork + exec. Returns a buffered stream reader to the command's output and the PID
-/// of the spawn child process for the command.
-fn run_command(command: Vec<String>) -> (BufReader<File>, Pid) {
-    let (read_fd, write_fd) = pipe().expect("pipe failed"); //~10 micro for pipe
-    match unsafe { fork() } { //~500 micro for fork
-        Ok(ForkResult::Child) => {
-            //Redirect STDOUT to the write end of the pipe and close unnecessary fds
-            close(read_fd).unwrap();
-            unsafe { //Necessary here because nix::dup2 would require libc::STDOUT_FILENO to be an OwnedFd for extra safety, which we cannot do here without taking unnecessary steps
-                let dup_status = libc::dup2(write_fd.as_raw_fd(), libc::STDOUT_FILENO);
-                if dup_status == -1 { panic!("Redirecting STDOUT to the write end of the pipe failed: {}", std::io::Error::last_os_error()); }
-            }
-            close(write_fd).unwrap();
-            //Parse and execute command
-            //Note: Keep an eye on the .clones - perhaps there's a more efficient way to deal with them (dereferencing is not an option)?
-            let cmd = CString::new(command[0].clone()).unwrap();
-            let c_args: Vec<CString> = command.iter().map(|s| CString::new(s.clone()).unwrap()).collect();
-            execvp(&cmd, &c_args).expect("Command execution failed");
-            exit(1) //This line should never run, but Rust's type checker doesn't quite understand how execvp works 
-        }
-        Ok(ForkResult::Parent { child }) => {
-            close(write_fd).unwrap(); //The read_fd will be closed automatically when its owning object is dropped
-            // Return a BufReader on the read end of the pipe and the child process's PID
-            let pipe_file = std::fs::File::from(read_fd);
-            (BufReader::new(pipe_file), child)
-        }
-        Err(e) => panic!("Fork failed: {}", e)
-    }
-}
+// /// Given a shell command (represented as a vector of Strings), ensures that the input to that command matches any
+// /// specified regex ipattern (coming soon!) and that the output to that command matches any specified regex opattern,
+// /// returning the command's output if both validations are satisfied and panicking if not.
+// fn monitor(command: Vec<String>, _ipattern: Option<String>, opattern: Option<String>) -> String {
+//     let _monitor_timer = Timer::new("Full Monitor");
+//     //Run command and retrieve output stream
+//     let _command_timer = Timer::new("Run Command");
+//     let (mut buffed_stream, child_pid) = run_command(command);
+//     drop(_command_timer);
+//     //Validate output
+//     let _validation_timer = Timer::new("Output Validation");
+//     let output = if let Option::Some(opattern) = opattern { validate_stream(buffed_stream, opattern) } 
+//     else { 
+//         let mut output_buf = String::new();
+//         buffed_stream.read_to_string(&mut output_buf).expect("Reading output buffer to a String failed");
+//         output_buf
+//     };
+//     drop(_validation_timer);
+//     waitpid(child_pid, None).unwrap();
+//     output
+// }
 
-/// Verifies that each line of the input buffered stream matches the input regex pattern, returning the full
-/// output if so and panicking if not.
-fn validate_stream(buffed_stream: BufReader<File>, pattern: String) -> String {
-    let pattern = Regex::new(&pattern).expect("Provided regular expression invalid");
-    //Line by line matching approach
-    let mut full_output = String::new();
-    for line_result in buffed_stream.lines() {
-        let line = line_result.unwrap();
-        //println!("Received line: {}", line);
-        if !pattern.is_match(&line) { panic!("Command output did not match pattern.\nPattern: {:?}\n Incriminating line of output: {:?}", pattern, line) }
-        full_output += line.as_str();
-    }
-    //Pass along full output if it is indeed valid
-    full_output
-}
+// /// Verifies that each line of the input buffered stream matches the input regex pattern, returning the full
+// /// output if so and panicking if not.
+// fn validate_stream(buffed_stream: BufReader<File>, pattern: String) -> String {
+//     let pattern = Regex::new(&pattern).expect("Provided regular expression invalid");
+//     //Line by line matching approach
+//     let mut full_output = String::new();
+//     for line_result in buffed_stream.lines() {
+//         let line = line_result.unwrap();
+//         if !pattern.is_match(&line) { panic!("Command output did not match pattern.\nPattern: {:?}\n Incriminating line of output: {:?}", pattern, line) }
+//         full_output += line.as_str();
+//     }
+//     full_output
+// }

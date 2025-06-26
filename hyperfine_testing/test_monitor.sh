@@ -1,1 +1,1 @@
-../target/release/stream-monitor -- $1
+$1 | ../target/release/stream-monitor --no-validation

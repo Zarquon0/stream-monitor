@@ -8,6 +8,8 @@ clap = { version = "4.5.40", features = ["derive"] }
 regex = "1.11.1"
 pprof = { version = "0.13", features = ["flamegraph", "protobuf"] }
 nix = { version = "0.30.1", features = ["fs", "process"] }
+regex-automata = "0.4.9"
+atty = "0.2.14"
 
 [profile.release-with-debug] # For usage with pprof
 inherits = "release"
