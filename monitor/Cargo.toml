@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies] # Commented out dependencies are not being used anymore by this crate
-clap = { version = "4.5.40", features = ["derive"] }
+clap.workspace = true
 # regex = "1.11.1"
 # pprof = { version = "0.13", features = ["flamegraph", "protobuf"] }
 # nix = { version = "0.30.1", features = ["fs", "process"] }
-regex-automata = "0.4.9"
+regex-automata.workspace = true
 atty = "0.2.14"
 
 [features]

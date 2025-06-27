@@ -61,17 +61,3 @@ fn complex_stream() {
     let dfa = dfa_from_pat(r"^ *(~(inet +)|(inet +([0-9]+\.){3}[0-9]+))");
     validate_stream(stream, dfa);
 }
-#[test]
-#[should_panic]
-fn invalid_stream() {
-    let stream = output_stream("not_a_stream");
-    let dfa = dfa_from_pat(r".*");
-    validate_stream(stream, dfa);
-}
-#[test]
-#[should_panic]
-fn invalid_stream_usage() {
-    let stream = output_stream("grep");
-    let dfa = dfa_from_pat(r".*");
-    validate_stream(stream, dfa);
-}

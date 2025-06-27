@@ -75,6 +75,10 @@ dependencies = [
 [[package]]
 name = "automaton-constructor"
 version = "0.1.0"
+dependencies = [
+ "clap",
+ "regex-automata",
+]
 
 [[package]]
 name = "clap"

@@ -4,6 +4,10 @@ members = [ "automaton-constructor",
     "monitor"
 ]
 
+[workspace.dependencies]
+regex-automata = "0.4.9"
+clap = { version = "4.5.40", features = ["derive"] }
+
 [profile.release-with-debug] # For usage with pprof
 inherits = "release"
 debug = true          # Required for symbols
