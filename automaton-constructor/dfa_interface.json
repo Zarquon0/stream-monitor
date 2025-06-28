@@ -1,3 +1,21 @@
 {
-    "Todo" : "Create Interface"
+    "start_state" : "state_id1",
+    "match_states" : ["state_id2", "state_id3", "..."],
+    "transition_table" : [
+        {
+            "curr_state" : "state_id4",
+            "range_start" : "byte1",
+            "range_end" : "byte2",
+            "next_state" : "state_id5"
+        },
+        {
+            "curr_state" : "state_id6",
+            "range_start" : "byte3",
+            "range_end" : "byte4",
+            "next_state" : "state_id7"
+        },
+        "..."
+    ],
+    "_comment1" : "Any byte in between range_start and range_end (inclusive) will be considered a match for that transition",
+    "_comment2" : "If for a given current state, a byte has no defined transition, I will assume it leads to a dead state (no possible match)"
 }

@@ -1,0 +1,37 @@
+{
+    "_comment" : "This corresponds to the regular expression '^[a-z]*A(1|[2-9]+)$'",
+    "start_state" : 1,
+    "match_states" : [3,4],
+    "transition_table" : [
+        {
+            "curr_state" : 1,
+            "range_start" : 97,
+            "range_end" : 122,
+            "next_state" : 1
+        },
+        {
+            "curr_state" : 1,
+            "range_start" : 65,
+            "range_end" : 65,
+            "next_state" : 2
+        },
+        {
+            "curr_state" : 2,
+            "range_start" : 49,
+            "range_end" : 49,
+            "next_state" : 3
+        },
+        {
+            "curr_state" : 2,
+            "range_start" : 50,
+            "range_end" : 57,
+            "next_state" : 4
+        },
+        {
+            "curr_state" : 4,
+            "range_start" : 50,
+            "range_end" : 57,
+            "next_state" : 4
+        }
+    ]
+}

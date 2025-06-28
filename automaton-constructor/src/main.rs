@@ -1,4 +1,6 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap, fs::File, io::BufReader, path::PathBuf
+};
 use clap::Parser;
 use regex_automata::{
     dfa::{Automaton, StartError},
@@ -7,6 +9,8 @@ use regex_automata::{
         start::Config,
     },
 };
+use serde::Deserialize;
+use serde_json;
 
 #[cfg(test)]
 mod tests;
@@ -15,7 +19,7 @@ mod tests;
 struct TransPair(StateID, u8); //A current state (StateID) and an input (byte - u8) define a next state (StateID)
 
 struct Dfa {
-    start_states: Vec<StateID>,
+    start_state: StateID,
     match_states: Vec<StateID>,
     transition_table: HashMap<TransPair, StateID>,
 }
@@ -32,9 +36,9 @@ unsafe impl Automaton for Dfa {
     fn is_special_state(&self, id: StateID) -> bool { todo!() }
     fn is_dead_state(&self, id: StateID) -> bool { todo!() }
     fn is_quit_state(&self, id: StateID) -> bool { todo!() }
-    fn is_match_state(&self, id: StateID) -> bool { todo!() }
-    fn is_start_state(&self, id: StateID) -> bool { todo!() }
-    fn is_accel_state(&self, id: StateID) -> bool { todo!() }
+    fn is_match_state(&self, id: StateID) -> bool { self.match_states.contains(&id) }
+    fn is_start_state(&self, id: StateID) -> bool { id == self.start_state }
+    fn is_accel_state(&self, _id: StateID) -> bool { false } //For now...
     fn pattern_len(&self) -> usize { 1 } //The monitor should never search for more than one pattern
     fn match_len(&self, id: StateID) -> usize { 
         if self.is_match_state(id) { 1 } else { 0 } //See above ^^^
@@ -42,11 +46,27 @@ unsafe impl Automaton for Dfa {
     fn match_pattern(&self, id: StateID, _index: usize) -> PatternID { 
         //Not entirely sure if this is totally correct, but the docs say this method won't get called for 
         //single pattern Automatons, so this should be good enough
-        if self.is_match_state(id) { PatternID::new(0).unwrap() } else { panic!("ID {:?} is not a match state", id) }
+        if self.is_match_state(id) { PatternID::must(0) } else { panic!("ID {:?} is not a match state", id) }
     }
     fn has_empty(&self) -> bool { todo!() }
-    fn is_utf8(&self) -> bool { todo!() }
+    fn is_utf8(&self) -> bool { false } //Our automaton will only have to address ASCII characters
     fn is_always_start_anchored(&self) -> bool { true } //All patterns are anchored at both ends
+}
+
+//Structs for initial representation of DFA from JSON
+
+#[derive(Deserialize)]
+struct JsonDfa {
+    start_state: usize, //Unfortunately, there's no way to get serde to deserialize directly to StateIDs because StateIDs have private fields
+    match_states: Vec<usize>,
+    transition_table: Vec<JsonTransition>,
+}
+#[derive(Deserialize)]
+struct JsonTransition {
+    curr_state: usize,
+    range_start: u8,
+    range_end: u8,
+    next_state: usize, 
 }
  
 #[derive(Parser, Debug)]
@@ -69,7 +89,19 @@ fn main() {
 
 /// Given a path to a JSON file containing properly formatted information about a DFA,
 /// attempts to construct a Dfa object out of that information
-fn dfa_from_json(json_path: PathBuf) -> std::io::Result<Dfa> { todo!() }
+fn dfa_from_json(json_path: PathBuf) -> std::io::Result<Dfa> { 
+    let json_file = File::open(json_path)?;
+    let json_dfa: JsonDfa = serde_json::from_reader(BufReader::new(json_file))?;
+    Ok(Dfa {
+        start_state: StateID::must(json_dfa.start_state),
+        match_states: json_dfa.match_states.iter().map(|sid| StateID::must(*sid)).collect(),
+        transition_table: convert_json_transitions(json_dfa.transition_table)
+    })
+ }
+
+ fn convert_json_transitions(jtrans: Vec<JsonTransition>) -> HashMap<TransPair, StateID> {
+    todo!()
+ }
 
 /// Serializes the input dfa and stores it in a file, returning the new file's path
 fn serialize_dfa(dfa: Dfa) -> PathBuf { todo!() }
