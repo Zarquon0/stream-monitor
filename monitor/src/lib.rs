@@ -40,13 +40,20 @@ unsafe impl Automaton for Dfa {
         for trans_desc in self.transition_table.get(&current).expect("Current state not in transition table - misconstructed DFA") {
             match trans_desc {
                 TransitionDesc::Match(byte, next_state) => { 
-                    if input == *byte { return next_state.clone() } 
+                    if input == *byte { 
+                        println!("Next state: {:?}", next_state);
+                        return next_state.clone() 
+                    } 
                 },
                 TransitionDesc::Range(start_byte, end_byte, next_state) => {
-                    if input >= *start_byte || input <= *end_byte { return next_state.clone() }
+                    if input >= *start_byte && input <= *end_byte { 
+                        println!("Next state: {:?}", next_state);
+                        return next_state.clone() 
+                    }
                 },
             }
         }
+        println!("Next state: {:?}", self.dead_state);
         self.dead_state
     }
     unsafe fn next_state_unchecked(&self, current: StateID, input: u8) -> StateID {
@@ -73,6 +80,61 @@ unsafe impl Automaton for Dfa {
     fn is_utf8(&self) -> bool { false } //Our automaton will only have to address ASCII characters
     fn is_always_start_anchored(&self) -> bool { true } //All patterns are anchored at both ends
 }
+
+//
+//TEMPORARILY PORTED OVER JSON PARSING FUNCTIONALITY
+//
+
+use std::{fs::File, io::BufReader};
+use serde::Deserialize;
+use serde_json;
+
+impl Dfa {
+    pub fn deserialize1(path: PathBuf) -> Self {
+        dfa_from_json(path).unwrap()
+    }
+}
+
+#[derive(Deserialize)]
+struct JsonDfa {
+    start_state: usize, //Unfortunately, there's no way to get serde to deserialize directly to StateIDs because StateIDs have private fields
+    match_states: Vec<usize>,
+    transition_table: Vec<JsonTransition>,
+}
+#[derive(Deserialize)]
+struct JsonTransition {
+    curr_state: usize,
+    range_start: u8,
+    range_end: u8,
+    next_state: usize, 
+}
+
+/// Given a path to a JSON file containing properly formatted information about a DFA,
+/// attempts to construct a Dfa object out of that information
+fn dfa_from_json(json_path: PathBuf) -> std::io::Result<Dfa> { 
+    let json_file = File::open(json_path)?;
+    let json_dfa: JsonDfa = serde_json::from_reader(BufReader::new(json_file))?;
+    Ok(Dfa::new(
+        StateID::must(json_dfa.start_state),
+        json_dfa.match_states.iter().map(|sid| StateID::must(*sid)).collect::<HashSet<StateID>>(),
+        convert_json_transitions(json_dfa.transition_table)
+    ))
+ }
+
+ fn convert_json_transitions(jtrans: Vec<JsonTransition>) -> TransitionTable {
+    let mut trans_table = HashMap::new();
+    for trans in jtrans {
+        let trans_desc_vec = trans_table
+            .entry(StateID::must(trans.curr_state)) 
+            .or_insert(Vec::new());
+        let next_state = StateID::must(trans.next_state);
+        let new_trans_desc = if trans.range_start == trans.range_end { TransitionDesc::Match(trans.range_start, next_state) } 
+            else { TransitionDesc::Range(trans.range_start, trans.range_end, next_state) };
+        trans_desc_vec.push(new_trans_desc);
+    }
+    trans_table
+ }
+
 
 // #[derive(Archive, Serialize, Deserialize, Debug, Copy, Clone, Eq, PartialEq, Hash)]
 // struct RkyvStateID(u32);

@@ -1,11 +1,13 @@
 //use regex::Regex;
 use clap::Parser;
-use regex_automata::{ dfa::{dense::DFA, Automaton}, Input };// MatchKind, util::start::Config };
+use regex_automata::{ dfa::{dense::DFA, Automaton}, HalfMatch, Input };// MatchKind, util::start::Config };
 use atty::{self, Stream};
 use std::path::PathBuf;
 use std::io::{self, BufRead, BufReader};
 use std::process::exit;
-use std::fs::{ self, File };
+use std::fs::File;
+
+use monitor::Dfa;
 
 #[cfg(test)]
 mod tests;
@@ -64,10 +66,11 @@ fn main() {
     };
     let dfa: Box<dyn Automaton> = match args.dfa_path {
         Some(path) => { //Currenty only supported for DFA's built through regex_automata!
-            let dfa_bytes = fs::read(path).expect("Path to DFA invalid.");
-            let dfa = DFA::from_bytes(&dfa_bytes)
-                .expect("Unable to deserialize DFA. Ensure provided file is a serialized DFA build from regex_automata.")
-                .0.to_owned(); //Gets around borrow of dfa_bytes
+            // let dfa_bytes = fs::read(path).expect("Path to DFA invalid.");
+            // let dfa = DFA::from_bytes(&dfa_bytes)
+            //     .expect("Unable to deserialize DFA. Ensure provided file is a serialized DFA build from regex_automata.")
+            //     .0.to_owned(); //Gets around borrow of dfa_bytes
+            let dfa = Dfa::deserialize1(path);
             Box::new(dfa)
         },
         None => {
@@ -92,11 +95,10 @@ fn validate_stream(stream: Box<dyn BufRead>, dfa: Box<dyn Automaton>) -> String 
         let line = line.expect("Error grabbing next line");
         //let _state = dfa.start_state(&Config::new()).expect("Couldn't bring DFA to start state");
         match dfa.try_search_fwd(&Input::new(&line.as_bytes())).expect("DFA search errored") {
-            Some(_mtch) => output += line.as_str(), 
-            //{
-            //     if mtch == HalfMatch::must(0, line.len()) { continue }
-            //     else { panic!("Only partial match...")}
-            // },
+            Some(mtch) => {
+                if mtch == HalfMatch::must(0, line.len()) { output += line.as_str() }
+                else { panic!("Validation failed (partial match).\nIncriminating line: {}", line)}
+            },
             None => panic!("Validation failed.\nIncriminating line: {}", line)
         }
 

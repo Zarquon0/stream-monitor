@@ -257,6 +257,8 @@ dependencies = [
  "regex-automata",
  "rkyv",
  "rkyv_derive",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

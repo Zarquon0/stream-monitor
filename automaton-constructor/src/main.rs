@@ -41,9 +41,10 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let dfa = dfa_from_json(args.json_file).expect("Error creating DFA - check file path and format of file");
-    let path = dfa.serialize();
-    if !args.suppress { println!("Successfully created and serialized DFA at {:?}!", path) }
+    let _dfa = dfa_from_json(args.json_file).expect("Error creating DFA - check file path and format of file");
+    println!("Success!")
+    //let path = dfa.serialize();
+    //if !args.suppress { println!("Successfully created and serialized DFA at {:?}!", path) }
 }
 
 /// Given a path to a JSON file containing properly formatted information about a DFA,
