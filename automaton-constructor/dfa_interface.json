@@ -17,5 +17,6 @@
         "..."
     ],
     "_comment1" : "Any byte in between range_start and range_end (inclusive) will be considered a match for that transition",
-    "_comment2" : "If for a given current state, a byte has no defined transition, I will assume it leads to a dead state (no possible match)"
+    "_comment2" : "If for a given current state, a byte has no defined transition, I will assume it leads to a dead state (no possible match)",
+    "_comment3" : "If possible, I intend to reserve state_id 0 for the DFA's dead state, so state_id 0 should not appear here"
 }
