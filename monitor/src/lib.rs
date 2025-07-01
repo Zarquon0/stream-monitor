@@ -9,6 +9,9 @@ use regex_automata::{
 };
 //use rkyv::{Archive, Serialize, Deserialize, with::{AsHashMap, AsHashSet}};
 
+//Expose timer for use by any crate 
+pub mod timer;
+
 pub enum TransitionDesc {
     Match(u8, StateID), //If an input byte == the sole u8 -> transition to StateID
     Range(u8, u8, StateID), //If an input byte is >= the first u8 and <= the second u8 -> transition to StateID

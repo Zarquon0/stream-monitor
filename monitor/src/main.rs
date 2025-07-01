@@ -101,10 +101,6 @@ fn validate_stream(stream: Box<dyn BufRead>, dfa: Box<dyn Automaton>) -> String 
             },
             None => panic!("Validation failed.\nIncriminating line: {}", line)
         }
-
-        // if let Some(offset) = result {
-        //     println!("MATCH @ {}: {}", offset, line);
-        // }
     }
     output
 }

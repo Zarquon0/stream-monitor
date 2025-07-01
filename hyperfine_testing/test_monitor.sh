@@ -1,1 +1,0 @@
-$1 | ../target/release/monitor -d ../automaton-constructor/example_dfa2.json

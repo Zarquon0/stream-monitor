@@ -1,0 +1,15 @@
+services:
+  stream-monitor:
+    build: .
+    image: stream-monitor
+    container_name: monitor-box
+    volumes:
+      - ./:/home/stream-monitor # Mount project directory
+      #- /tmp/.X11-unix:/tmp/.X11-unix # Used for GUI applications
+      #- apt-cache:/var/cache/apt
+      #- apt-lib:/var/lib/apt
+    stdin_open: true # docker run -i
+    tty: true        # docker run -t
+#volumes:
+#  apt-cache: {} # Empty brackets specify default configuration
+#  apt-lib: {}
