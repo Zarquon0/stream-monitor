@@ -1,0 +1,16 @@
+{
+  "_comment" : "This corresponds to the regular expression '[0-9]+'",
+  "start_state" : 1,
+  "match_states" : [ 2 ],
+  "transition_table" : [ {
+    "curr_state" : 1,
+    "range_start" : 48,
+    "range_end" : 57,
+    "next_state" : 2
+  }, {
+    "curr_state" : 2,
+    "range_start" : 48,
+    "range_end" : 57,
+    "next_state" : 2
+  } ]
+}
