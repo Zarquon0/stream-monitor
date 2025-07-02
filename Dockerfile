@@ -11,6 +11,18 @@ RUN apt install -y \
   ca-certificates
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
+# Install Java and Maven for regex -> json DFA script (for testing harness)
+RUN apt install -y \
+    default-jdk \ 
+    maven
+
+# Install extra packages test shell commands require
+RUN apt install -y \
+    acpi \
+    iproute2 \
+    net-tools \
+    iptables
+
 # Run bash shell start up script (source cargo)
 COPY docker-helpers/startup.sh /
 RUN chmod +x /startup.sh

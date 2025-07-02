@@ -94,7 +94,7 @@ use serde_json;
 
 impl Dfa {
     pub fn deserialize1(path: PathBuf) -> Self {
-        dfa_from_json(path).unwrap()
+        dfa_from_json(path).expect("Failed deserializing DFA from JSON - check file path")
     }
 }
 
