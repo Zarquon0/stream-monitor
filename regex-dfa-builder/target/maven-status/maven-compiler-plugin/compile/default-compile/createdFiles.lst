@@ -1,0 +1,4 @@
+com/example/regexdfa/AutomatonSerializer.class
+com/example/regexdfa/AutomatonSerializer$AutomatonJson.class
+com/example/regexdfa/RegexDfaBuilder.class
+com/example/regexdfa/AutomatonSerializer$TransitionEntry.class
