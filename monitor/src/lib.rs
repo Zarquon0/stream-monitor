@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet}, path::PathBuf, u8::{MAX, MIN}
+    collections::{HashMap, HashSet}, fs::create_dir, io::{BufWriter, Read, Write}, path::PathBuf, u8::{MAX, MIN}
 };
 use regex_automata::{
     dfa::{Automaton, StartError}, util::{
@@ -7,7 +7,9 @@ use regex_automata::{
         start::Config,
     }
 };
-//use rkyv::{Archive, Serialize, Deserialize, with::{AsHashMap, AsHashSet}};
+//use rkyv::{Archive, Deserialize, Serialize};
+use bitcode::{self, Encode, Decode};
+use std::io;
 
 //Expose timer for use by any crate 
 pub mod timer;
@@ -35,8 +37,14 @@ impl Dfa {
         );
         Dfa { start_state, match_states, transition_table, dead_state }
     }
-    pub fn serialize(&self) -> PathBuf { todo!() }
-    pub fn deserialize(path: PathBuf) -> Self { todo!() }
+    pub fn serialize(self) -> PathBuf { 
+        let serializable_self = SerDfa::from(self);
+        serializable_self.serialize().expect("Failed to serialize DFA")
+    }
+    pub fn deserialize(path: PathBuf) -> Self { 
+        let serializable_self = SerDfa::deserialize(&path).expect(format!("Failed to deserialize DFA from {:?}", path).as_str());
+        serializable_self.to_dfa()
+    }
 }
 unsafe impl Automaton for Dfa {
     fn next_state(&self, current: StateID, input: u8) -> StateID {
@@ -84,27 +92,107 @@ unsafe impl Automaton for Dfa {
     fn is_always_start_anchored(&self) -> bool { true } //All patterns are anchored at both ends
 }
 
+//Serialization Objects
+const CACHE_DIR: &str = "serialized-dfa-cache";
+
+#[derive(Encode, Decode, Debug, PartialEq, Eq, Hash, Clone)]
+enum STD {
+    Match(u8, u32),
+    Range(u8, u8, u32)
+}
+
+
+#[derive(Encode, Decode, Debug)]
+struct SerDfa {
+    start_state: u32,
+    match_states: HashSet<u32>,
+    transition_table: HashMap<u32, Vec<STD>>,
+    dead_state: u32,
+}
+impl SerDfa {
+    fn from(dfa: Dfa) -> Self {
+        let mut new_table = HashMap::new();
+        for (key, val) in dfa.transition_table {
+            let new_val: Vec<STD> = val
+                .iter().map(|td| match *td {
+                    TransitionDesc::Match(b, sid) => STD::Match(b, sid.as_u32()),
+                    TransitionDesc::Range(b1, b2, sid) => STD::Range(b1, b2, sid.as_u32())
+                }).collect();
+            new_table.insert(key.as_u32(), new_val);
+        }
+        Self {
+            start_state: dfa.start_state.as_u32(),
+            match_states: dfa.match_states.iter().map(|sid| sid.as_u32()).collect(),
+            transition_table: new_table,
+            dead_state: dfa.dead_state.as_u32(),
+        }
+    }
+    fn to_dfa(self) -> Dfa {
+        let mut new_table: TransitionTable = HashMap::new();
+        for (key, val) in self.transition_table {
+            let new_val: Vec<TransitionDesc> = val
+                .iter().map(|td| match *td {
+                    STD::Match(b, sid) => TransitionDesc::Match(b, StateID::must(sid as usize)),
+                    STD::Range(b1, b2, sid) => TransitionDesc::Range(b1, b2, StateID::must(sid as usize))
+                }).collect();
+            new_table.insert(StateID::must(key as usize), new_val);
+        }
+        Dfa {
+            start_state: StateID::must(self.start_state as usize), 
+            match_states: self.match_states.iter().map(|sid| StateID::must(*sid as usize)).collect(),
+            transition_table: new_table,
+            dead_state: StateID::must(self.dead_state as usize),
+        }
+    }
+    fn serialize(&self) -> io::Result<PathBuf> {
+        //Encode into bytes
+        let bytes: Vec<u8> = bitcode::encode(self);
+        //Create file with name based on hash of encoded bytes
+        let hash = blake3::hash(&bytes);
+        let cache_dir = proj_root().join(CACHE_DIR);
+        if !cache_dir.exists() { create_dir(&cache_dir).expect("Failed to create dfa cache dir"); }
+        let path = cache_dir.join(format!("sdfa-{}.bc", hash.to_hex()[..8].to_string()));
+        let file = File::create(&path).expect(format!("Couldn't create file at path: {:?}", path).as_str());
+        //Write bytes to file
+        let mut writer = BufWriter::new(file);
+        writer.write_all(&bytes)?;
+        writer.flush()?;
+        Ok(path)
+    }
+    fn deserialize(path: &PathBuf) -> io::Result<Self> {
+        let file = File::open(path).expect(format!("Couldn't open file at path: {:?}", path).as_str());
+        let mut reader = BufReader::new(file);
+        let mut buffer = Vec::new();
+        reader.read_to_end(&mut buffer)?;
+        Ok(bitcode::decode(&buffer).expect("Failed to decode"))
+    }
+}
+
+fn proj_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
 //
 //TEMPORARILY PORTED OVER JSON PARSING FUNCTIONALITY
 //
 
 use std::{fs::File, io::BufReader};
-use serde::Deserialize;
+use serde;
 use serde_json;
 
 impl Dfa {
-    pub fn deserialize1(path: PathBuf) -> Self {
+    pub fn deserialize_json(path: PathBuf) -> Self {
         dfa_from_json(path).expect("Failed deserializing DFA from JSON - check file path")
     }
 }
 
-#[derive(Deserialize)]
+#[derive(serde::Deserialize)]
 struct JsonDfa {
     start_state: usize, //Unfortunately, there's no way to get serde to deserialize directly to StateIDs because StateIDs have private fields
     match_states: Vec<usize>,
     transition_table: Vec<JsonTransition>,
 }
-#[derive(Deserialize)]
+#[derive(serde::Deserialize)]
 struct JsonTransition {
     curr_state: usize,
     range_start: u8,

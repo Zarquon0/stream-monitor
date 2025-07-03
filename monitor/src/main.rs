@@ -70,7 +70,7 @@ fn main() {
             // let dfa = DFA::from_bytes(&dfa_bytes)
             //     .expect("Unable to deserialize DFA. Ensure provided file is a serialized DFA build from regex_automata.")
             //     .0.to_owned(); //Gets around borrow of dfa_bytes
-            let dfa = Dfa::deserialize1(path);
+            let dfa = Dfa::deserialize(path);
             Box::new(dfa)
         },
         None => {
