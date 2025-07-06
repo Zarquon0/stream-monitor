@@ -137,7 +137,5 @@ public class AutomatonSerializer {
         ObjectMapper mapper = new ObjectMapper();
         mapper.enable(SerializationFeature.INDENT_OUTPUT);
         mapper.writeValue(new File(filename), automatonJson);
-        
-        //System.out.println("Automaton serialized to " + filename);
     }
 } 

@@ -92,7 +92,7 @@ impl BenchMark {
         let json_dfa_path = self.proj_root.join(DFA_CACHE).join(PathBuf::from(String::from_utf8_lossy(&builder_out.stdout).trim()));
         //Ok(json_dfa_path)
         //Deserialize into Dfa from JSON, then serialize into binary form (for quicker deserialization)
-        Ok(Dfa::deserialize_json(json_dfa_path).serialize())
+        Ok(Dfa::deserialize_from_json(json_dfa_path).serialize())
     }
     fn handle_test_res<T>(&self, test_res: Result<T>, msg: &str) -> Option<T> {
         match test_res {
@@ -160,6 +160,8 @@ fn main() {
     //Create cache directory if it doesn't exist
     let cache_dir = proj_root().join(DFA_CACHE);
     if !cache_dir.exists() { create_dir(cache_dir).expect("Failed to create dfa cache dir"); }
+    //Clean DFA's built-in cache of DFAs 
+    Dfa::clean_cache();
     //Run bench marks and collect ratios
     let mut ratios = Vec::new();
     let mut times = Vec::new();

@@ -1,15 +1,20 @@
 use std::{
-    collections::{HashMap, HashSet}, fs::create_dir, io::{BufWriter, Read, Write}, path::PathBuf, u8::{MAX, MIN}
+    collections::{HashMap, HashSet}, 
+    fs::{create_dir, remove_dir_all, File}, 
+    io::{self, BufWriter, BufReader, Read, Write}, 
+    path::PathBuf,
+    u8::{MAX, MIN}
 };
 use regex_automata::{
-    dfa::{Automaton, StartError}, util::{
+    dfa::{Automaton, StartError}, 
+    util::{
         primitives::{PatternID, StateID}, //These two are wrapped u32s
         start::Config,
     }
 };
-//use rkyv::{Archive, Deserialize, Serialize};
 use bitcode::{self, Encode, Decode};
-use std::io;
+use serde;
+use serde_json;
 
 //Expose timer for use by any crate 
 pub mod timer;
@@ -45,6 +50,8 @@ impl Dfa {
         let serializable_self = SerDfa::deserialize(&path).expect(format!("Failed to deserialize DFA from {:?}", path).as_str());
         serializable_self.to_dfa()
     }
+    pub fn deserialize_from_json(path: PathBuf) -> Self { dfa_from_json(path).expect("Failed deserializing DFA from JSON - check file path") }
+    pub fn clean_cache() { SerDfa::clean_ser_dir(); }
 }
 unsafe impl Automaton for Dfa {
     fn next_state(&self, current: StateID, input: u8) -> StateID {
@@ -92,7 +99,10 @@ unsafe impl Automaton for Dfa {
     fn is_always_start_anchored(&self) -> bool { true } //All patterns are anchored at both ends
 }
 
-//Serialization Objects
+//
+//SERIALIZATION OBJECTS
+//
+
 const CACHE_DIR: &str = "serialized-dfa-cache";
 
 #[derive(Encode, Decode, Debug, PartialEq, Eq, Hash, Clone)]
@@ -100,7 +110,6 @@ enum STD {
     Match(u8, u32),
     Range(u8, u8, u32)
 }
-
 
 #[derive(Encode, Decode, Debug)]
 struct SerDfa {
@@ -147,7 +156,7 @@ impl SerDfa {
     fn serialize(&self) -> io::Result<PathBuf> {
         //Encode into bytes
         let bytes: Vec<u8> = bitcode::encode(self);
-        //Create file with name based on hash of encoded bytes
+        //Create file with name based on hash of encoded bytes - WARNING: file names are non-deterministic due to non-deterministic iterating order of hashmaps/hashsets
         let hash = blake3::hash(&bytes);
         let cache_dir = proj_root().join(CACHE_DIR);
         if !cache_dir.exists() { create_dir(&cache_dir).expect("Failed to create dfa cache dir"); }
@@ -166,6 +175,12 @@ impl SerDfa {
         reader.read_to_end(&mut buffer)?;
         Ok(bitcode::decode(&buffer).expect("Failed to decode"))
     }
+    fn clean_ser_dir() {
+        let cache_dir = proj_root().join(CACHE_DIR);
+        if !cache_dir.exists() { 
+            remove_dir_all(cache_dir).expect("Failed to delete serialized DFA cache directory"); 
+        }
+    }
 }
 
 fn proj_root() -> PathBuf {
@@ -173,18 +188,8 @@ fn proj_root() -> PathBuf {
 }
 
 //
-//TEMPORARILY PORTED OVER JSON PARSING FUNCTIONALITY
+//JSON PARSING OBJECTS
 //
-
-use std::{fs::File, io::BufReader};
-use serde;
-use serde_json;
-
-impl Dfa {
-    pub fn deserialize_json(path: PathBuf) -> Self {
-        dfa_from_json(path).expect("Failed deserializing DFA from JSON - check file path")
-    }
-}
 
 #[derive(serde::Deserialize)]
 struct JsonDfa {
@@ -225,78 +230,3 @@ fn dfa_from_json(json_path: PathBuf) -> std::io::Result<Dfa> {
     }
     trans_table
  }
-
-
-// #[derive(Archive, Serialize, Deserialize, Debug, Copy, Clone, Eq, PartialEq, Hash)]
-// struct RkyvStateID(u32);
-// impl From<StateID> for RkyvStateID {
-//     fn from(id: StateID) -> Self { RkyvStateID(id.as_usize() as u32) }
-// }
-// impl From<RkyvStateID> for StateID {
-//     fn from(id: RkyvStateID) -> Self { StateID::must(id.0 as usize) }
-// }
-
-// #[derive(Archive, Serialize, Deserialize)]
-// enum RkyvTransitionDesc {
-//     Match(u8, RkyvStateID), //If an input byte == the sole u8 -> transition to StateID
-//     Range(u8, u8, RkyvStateID), //If an input byte is >= the first u8 and <= the second u8 -> transition to StateID
-// }
-// type RkyvTransitionTable = HashMap<RkyvStateID, Vec<RkyvTransitionDesc>>;
-
-// fn rkyv_tt(tt: TransitionTable) -> RkyvTransitionTable {
-//     let mut new_table: RkyvTransitionTable = HashMap::new();
-//     for (key, val) in tt {
-//         let new_val: Vec<RkyvTransitionDesc> = val
-//             .iter().map(|td| match *td {
-//                 TransitionDesc::Match(b, sid) => RkyvTransitionDesc::Match(b, sid.into()),
-//                 TransitionDesc::Range(b1, b2, sid) => RkyvTransitionDesc::Range(b1, b2, sid.into())
-//             }).collect();
-//         new_table.insert(key.into(), new_val);
-//     }
-//     new_table
-// }
-// fn unrkyv_rtt(rtt: RkyvTransitionTable) -> TransitionTable {
-//     let mut new_table: TransitionTable = HashMap::new();
-//     for (key, val) in rtt {
-//         let new_val: Vec<TransitionDesc> = val
-//             .iter().map(|td| match *td {
-//                 RkyvTransitionDesc::Match(b, sid) => TransitionDesc::Match(b, sid.into()),
-//                 RkyvTransitionDesc::Range(b1, b2, sid) => TransitionDesc::Range(b1, b2, sid.into())
-//             }).collect();
-//         new_table.insert(key.into(), new_val);
-//     }
-//     new_table
-// }
-
-// #[derive(Archive, Serialize, Deserialize)]
-// //#[archive(check_bytes)]
-// struct RkyvDfa {
-//     start_state: RkyvStateID,
-//     match_states: HashSet<RkyvStateID>,
-//     transition_table: HashMap<RkyvStateID, Vec<RkyvTransitionDesc>>,
-//     dead_state: RkyvStateID,
-// }
-// impl RkyvDfa {
-//     fn make_dfa(self) -> Dfa {
-//         Dfa { 
-//             start_state: self.start_state.into(),
-//             match_states: self.match_states.iter().map(|sid| *sid.into()).collect(),
-//             transition_table: unrkyv_rtt(self.transition_table),
-//             dead_state: self.dead_state.into(),
-//         }
-//     }
-// }
-
-// #[derive(Archive, Serialize, Deserialize)]
-// struct RDfa {
-//     start_state: u32,
-//     match_states: HashSet<u32>,
-//     transition_table: HashMap<u32, Vec<Thing>>,
-//     dead_state: u32,
-// }
-
-// #[derive(Archive, Serialize, Deserialize)]
-// enum Thing {
-//     Match(u8, u32), //If an input byte == the sole u8 -> transition to StateID
-//     Range(u8, u8, u32), //If an input byte is >= the first
-// }

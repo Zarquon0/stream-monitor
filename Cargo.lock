@@ -85,17 +85,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "automaton-constructor"
-version = "0.1.0"
-dependencies = [
- "clap",
- "monitor",
- "regex-automata",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "bitcode"
 version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"

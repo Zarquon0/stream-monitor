@@ -1,8 +1,9 @@
 [workspace]
 resolver = "3"
-members = [ "automaton-constructor",
-    "monitor"
-, "testing"]
+members = [
+    "monitor", 
+    "testing"
+]
 
 [workspace.dependencies]
 regex-automata = "0.4.9"
