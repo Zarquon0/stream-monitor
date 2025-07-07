@@ -9,7 +9,8 @@ use std::path::PathBuf;
 use std::fs;
 use clap::Parser;
 
-/// Example utility that processes an input file and optionally outputs to a directory
+/// Utility that parses an input JSON file into a serialized Rust DFA object, optionally copying it over to a
+/// specified output directory
 #[derive(Parser, Debug)]
 struct Args {
     /// JSON DFA file to parse from
@@ -19,9 +20,6 @@ struct Args {
     /// Optional output directory
     #[arg(short, long, value_name = "DIR")]
     output_dir: Option<PathBuf>,
-
-    #[arg(long, default_value_t = false)]
-    suppress: bool,
 }
 
 fn main() {

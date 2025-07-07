@@ -4,8 +4,10 @@ use atty::{self, Stream};
 use std::path::PathBuf;
 use std::io::{self, BufRead, BufReader};
 use std::process::exit;
-use std::fs::File;
-
+use std::fs::{self, File};
+use std::env;
+use nix::sys::signal::{self, Signal};
+use nix::unistd::Pid;
 use monitor::Dfa;
 
 #[cfg(test)]
@@ -40,6 +42,10 @@ struct Args {
     ///No validation will be performed (DFA defaults to a .* matcher) - mainly exists for development purposes
     #[arg(long, default_value_t=false)]
     no_validation: bool,
+    ///On a failed validation, instead of panicking, will send a SIGTERM signal to the PID stored at env variable
+    ///MONITOR_TARGET_PID
+    #[arg(short, long, default_value_t=false)]
+    trap: bool,
     ///File path to file containing input to check - if not specified, monitor will instead look to stdin
     #[arg(required(false))]
     input_file: Option<PathBuf>,
@@ -78,23 +84,49 @@ fn main() {
             }
         }
     };
-    //Validate the stream
-    validate_stream(input_stream, dfa);
+    //Validate the stream and handle validation failure behavior
+    if let Err(e) = validate_stream(input_stream, dfa) {
+        let msg = match e {
+            ValidationFailure::Partial(line) => format!("Validation failed (partial match)\nIncriminating line: {}", line),
+            ValidationFailure::Whole(line) => format!("Validation failed\nIncriminating line: {}", line),
+        };
+        if args.trap { kill_shell(msg.as_str()).expect("Trap not properly set up (and validation failed)") }
+        else { panic!("{}", msg) }
+    }
     
+}
+
+enum ValidationFailure {
+    Partial(String),
+    Whole(String),
 }
 
 /// Given a stream and a DFA, walks the DFA over the stream, writing each line of the stream to stdout as it
 /// validates
-fn validate_stream(stream: Box<dyn BufRead>, dfa: Box<dyn Automaton>) {
+fn validate_stream(stream: Box<dyn BufRead>, dfa: Box<dyn Automaton>) -> Result<(), ValidationFailure> {
     for line in stream.lines() {
         let line = line.expect("Error grabbing next line");
         //let _state = dfa.start_state(&Config::new()).expect("Couldn't bring DFA to start state");
         match dfa.try_search_fwd(&Input::new(&line.as_bytes())).expect("DFA search errored") {
             Some(mtch) => {
                 if mtch == HalfMatch::must(0, line.len()) { println!("{}", line.as_str()) } //Write line to stdout - done line by line to preserve streaming
-                else { panic!("Validation failed (partial match).\nIncriminating line: {}", line)}
+                else { return Err(ValidationFailure::Partial(line)) }
             },
-            None => panic!("Validation failed.\nIncriminating line: {}", line)
+            None => return Err(ValidationFailure::Whole(line))
         }
     }
+    Ok(())
+}
+
+/// Assuming the appropriate environment variables and trap are set, sends a message to be print 
+/// and a kill signal to the parent shell process
+fn kill_shell(message: &str) -> Result<(), Box<dyn std::error::Error>> {
+    //Read environment variables
+    let file_path = env::var("MONITOR_MESSAGE_FILE").map_err(|_| "MONITOR_MESSAGE_FILE not set")?;
+    let pid_str = env::var("MONITOR_TARGET_PID").map_err(|_| "MONITOR_TARGET_PID not set")?;
+    let pid = pid_str.parse().map_err(|_| "MONITOR_TARGET_PID not properly set (couldn't parse to an i32)")?;
+    //Write message to temp file and send the kill signal
+    fs::write(&file_path, message)?;
+    signal::kill(Pid::from_raw(pid), Signal::SIGUSR1)?;
+    Ok(())
 }

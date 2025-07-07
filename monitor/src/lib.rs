@@ -59,19 +59,19 @@ unsafe impl Automaton for Dfa {
             match trans_desc {
                 TransitionDesc::Match(byte, next_state) => { 
                     if input == *byte { 
-                        println!("Next state: {:?}", next_state);
+                        dbg!(format!("Next state: {:?}", next_state));
                         return next_state.clone() 
                     } 
                 },
                 TransitionDesc::Range(start_byte, end_byte, next_state) => {
                     if input >= *start_byte && input <= *end_byte { 
-                        println!("Next state: {:?}", next_state);
+                        dbg!(format!("Next state: {:?}", next_state));
                         return next_state.clone() 
                     }
                 },
             }
         }
-        println!("Next state: {:?}", self.dead_state);
+        dbg!(format!("Next state: {:?}", self.dead_state));
         self.dead_state
     }
     unsafe fn next_state_unchecked(&self, current: StateID, input: u8) -> StateID {
@@ -177,7 +177,7 @@ impl SerDfa {
     }
     fn clean_ser_dir() {
         let cache_dir = proj_root().join(CACHE_DIR);
-        if !cache_dir.exists() { 
+        if cache_dir.exists() { 
             remove_dir_all(cache_dir).expect("Failed to delete serialized DFA cache directory"); 
         }
     }

@@ -10,7 +10,7 @@ path = "src/lib.rs"
 clap.workspace = true
 # regex = "1.11.1"
 # pprof = { version = "0.13", features = ["flamegraph", "protobuf"] }
-# nix = { version = "0.30.1", features = ["fs", "process"] }
+nix = { version = "0.30.1", features = ["signal"] }
 regex-automata.workspace = true
 atty = "0.2.14"
 serde = { version = "1.0.219", features = ["derive"] }
