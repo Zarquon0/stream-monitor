@@ -96,6 +96,7 @@ fn main() {
     
 }
 
+#[derive(Debug)]
 enum ValidationFailure {
     Partial(String),
     Whole(String),

@@ -21,45 +21,45 @@ fn simple_match() {
     let stream = output_stream("echo hello world");
     let dfa = dfa_from_pat("hello world");
     //assert_eq!(validate_stream(stream, dfa), String::from("hello world"));
-    validate_stream(stream, dfa);
+    validate_stream(stream, dfa).unwrap();
 }
 #[test]
 #[should_panic]
 fn simple_fail() {
     let stream = output_stream("echo hello world");
     let dfa = dfa_from_pat("helo world");
-    validate_stream(stream, dfa);
+    validate_stream(stream, dfa).unwrap();
 }
 #[test]
 fn basic_regex_match() {
     let stream = output_stream("echo hello world.");
     let dfa = dfa_from_pat(r"[a-z]+ [a-z]*\.");
     //assert_eq!(validate_stream(stream, dfa), String::from("hello world."));
-    validate_stream(stream, dfa);
+    validate_stream(stream, dfa).unwrap();
 }
 #[test]
 #[should_panic]
 fn basic_regex_fail() {
     let stream = output_stream("echo hello w0rld.");
     let dfa = dfa_from_pat(r"[a-z]+ [a-z]*\.");
-    validate_stream(stream, dfa);
+    validate_stream(stream, dfa).unwrap();
 }
 #[test]
 fn complex_regex_match() {
     let stream = output_stream("ls -l");
     let dfa = dfa_from_pat(r"(total [0-9]+)|([drwxr@-]+ +[0-9]+ +[^ ]+ +[^ ]+ +[0-9]+ +[a-zA-Z]+ +[0-9]+ +[0-9:]+ +.+)");
-    validate_stream(stream, dfa); //Can't assert equivalence b/c variable output - not panicking should be good enough!
+    validate_stream(stream, dfa).unwrap();
 }
 #[test]
 #[should_panic]
 fn complex_regex_fail() {
     let stream = output_stream("ps -f");
     let dfa = dfa_from_pat(r"(UID( )+PID( )+PPID( )+C( )+STIME( )+TTY( )+TIME( )+CMD)|(([0-9a-zA-Z_]+|-)( )+[0-9]+( )+[0-9]+( )+[0-9]+( )+[0-9]+( )+[a-z0-9/?]+[^ ]+[0-9][0-9:]+( )+.+)");
-    validate_stream(stream, dfa);
+    validate_stream(stream, dfa).unwrap();
 }
 #[test]
 fn complex_stream() {
     let stream = output_stream("ifconfig | grep 'inet ' | grep -v 127.0.0.1 | cut -f  2");
-    let dfa = dfa_from_pat(r"^ *(~(inet +)|(inet +([0-9]+\.){3}[0-9]+))");
-    validate_stream(stream, dfa);
+    let dfa = dfa_from_pat(r"^ *(~(inet +)|(inet +([0-9]+\.){3}[0-9]+)).*");
+    validate_stream(stream, dfa).unwrap();
 }
