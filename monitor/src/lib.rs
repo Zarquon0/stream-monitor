@@ -59,19 +59,19 @@ unsafe impl Automaton for Dfa {
             match trans_desc {
                 TransitionDesc::Match(byte, next_state) => { 
                     if input == *byte { 
-                        dbg!(format!("Next state: {:?}", next_state));
+                        //dbg!(format!("Next state: {:?}", next_state));
                         return next_state.clone() 
                     } 
                 },
                 TransitionDesc::Range(start_byte, end_byte, next_state) => {
                     if input >= *start_byte && input <= *end_byte { 
-                        dbg!(format!("Next state: {:?}", next_state));
+                        //dbg!(format!("Next state: {:?}", next_state));
                         return next_state.clone() 
                     }
                 },
             }
         }
-        dbg!(format!("Next state: {:?}", self.dead_state));
+        //dbg!(format!("Next state: {:?}", self.dead_state));
         self.dead_state
     }
     unsafe fn next_state_unchecked(&self, current: StateID, input: u8) -> StateID {
@@ -218,15 +218,25 @@ fn dfa_from_json(json_path: PathBuf) -> std::io::Result<Dfa> {
  }
 
  fn convert_json_transitions(jtrans: Vec<JsonTransition>) -> TransitionTable {
+    //Convert all JsonTransitions to TransitionTable entries
     let mut trans_table = HashMap::new();
+    let mut next_states = HashSet::new();
     for trans in jtrans {
         let trans_desc_vec = trans_table
             .entry(StateID::must(trans.curr_state)) 
             .or_insert(Vec::new());
         let next_state = StateID::must(trans.next_state);
+        next_states.insert(next_state.clone());
         let new_trans_desc = if trans.range_start == trans.range_end { TransitionDesc::Match(trans.range_start, next_state) } 
             else { TransitionDesc::Range(trans.range_start, trans.range_end, next_state) };
         trans_desc_vec.push(new_trans_desc);
+    }
+    //Check to make sure that all states do actually have an entry in the table - this is not garaunteed be default!
+    let next_states: Vec<StateID> = next_states.into_iter().collect();
+    for state in next_states {
+        if let None = trans_table.get(&state) { 
+            trans_table.insert(state, Vec::new()); //Empty vector because all transitions from these states lead to dead state
+        }
     }
     trans_table
  }

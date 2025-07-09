@@ -9,7 +9,7 @@ debug:
 
 # Must be run with sudo
 release:
-	cargo build -p monitor --release
+	cargo build --release -p monitor;
 	cp $(ROOT_DIR)/target/release/monitor $(ROOT_DIR)/streamonitor
 
 perf_test:

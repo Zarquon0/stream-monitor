@@ -68,11 +68,7 @@ fn main() {
         }
     };
     let dfa: Box<dyn Automaton> = match args.dfa_path {
-        Some(path) => { //Currenty only supported for DFA's built through regex_automata!
-            // let dfa_bytes = fs::read(path).expect("Path to DFA invalid.");
-            // let dfa = DFA::from_bytes(&dfa_bytes)
-            //     .expect("Unable to deserialize DFA. Ensure provided file is a serialized DFA build from regex_automata.")
-            //     .0.to_owned(); //Gets around borrow of dfa_bytes
+        Some(path) => {
             let dfa = Dfa::deserialize(path);
             Box::new(dfa)
         },
@@ -105,7 +101,9 @@ enum ValidationFailure {
 /// Given a stream and a DFA, walks the DFA over the stream, writing each line of the stream to stdout as it
 /// validates
 fn validate_stream(stream: Box<dyn BufRead>, dfa: Box<dyn Automaton>) -> Result<(), ValidationFailure> {
+    let mut stream_empty = true; //Annoying boolean flag to deal with empty stream edge case - annoying, but I see no better option
     for line in stream.lines() {
+        if stream_empty { stream_empty = false; }
         let line = line.expect("Error grabbing next line");
         //let _state = dfa.start_state(&Config::new()).expect("Couldn't bring DFA to start state");
         match dfa.try_search_fwd(&Input::new(&line.as_bytes())).expect("DFA search errored") {
@@ -116,6 +114,8 @@ fn validate_stream(stream: Box<dyn BufRead>, dfa: Box<dyn Automaton>) -> Result<
             None => return Err(ValidationFailure::Whole(line))
         }
     }
+    //If the stream is empty and the DFA doesn't accept "", it needs to error
+    if stream_empty && !dfa.has_empty() { return Err(ValidationFailure::Whole(String::new())) }
     Ok(())
 }
 

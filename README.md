@@ -50,14 +50,10 @@ Feeling brave? Let's try a full example!
 ```bash
 # cd stream-monitor
 echo "abcdA234" > test.txt
-cd json-to-dfa
-chmod +x parse_dfa.rs
-./parse_dfa.rs -o ../ example_dfa.json
-cd ..
 make debug
-./streamonitor -d sdfa-<hash_stuff>.bc test.txt # Just use tab completion after `sdfa` - the name is, unfortunately, non-deterministic *ugh*
+./streamonitor -d ../serialized_example_dfa.bc test.txt
 ```
-If you see a bunch of "Next State: (<num>)" prints followed by the contents of `test.txt`, you've got the monitor and the json parser script set up properly!
+If you just see the contents of `test.txt` printed, you've got the monitor set up properly! If you'd like to see what happens when validation fails, you could remove the A from the contents of `test.txt` and rerun the monitor.
 
 ## Running the Testing Harness
 If you're in the container (or are using a linux machine with the proper dependencies installed), it should be as simple as
