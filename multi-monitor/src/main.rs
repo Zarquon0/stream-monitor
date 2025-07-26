@@ -3,6 +3,12 @@ use std::{path::PathBuf, process::{Command, Stdio, exit}};
 use std::io::{self, BufReader, Read, Write, BufRead};
 use std::thread;
 
+const MON_BINARY: &str = "streamonitor";
+
+fn proj_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -29,11 +35,13 @@ fn main() {
     ) + (if let Some(_) = args.dfa_path { 1 } else { 0 });
     assert_eq!(num_args_specified, 1, "Must have one (and only one) operating mode specified");
     //Execute proper functionality
+    let mon_binary = proj_root().join(MON_BINARY);
+    let mon_binary_str = mon_binary.to_str().unwrap();
     let streamonitor_args = if let Some(path) = args.dfa_path { 
-        Some(("./streamonitor".to_string(), vec!["-d".to_string(), path.to_string_lossy().to_string()]))
+        Some((mon_binary_str, vec!["-d".to_string(), path.to_string_lossy().to_string()]))
         //Some(path.clone().to_str().unwrap())
     } else if let Some(regex) = args.regex {
-        Some(("./streamonitor".to_string(), vec!["-r".to_string(), regex]))
+        Some((mon_binary_str, vec!["-r".to_string(), regex]))
         //Some(regex.clone().as_str())
     } else if let Some(regex) = args.grep {
         grep_monitor("grep", "-Exc", regex);

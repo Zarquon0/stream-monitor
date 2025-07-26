@@ -23,6 +23,9 @@ RUN apt install -y \
     net-tools \
     iptables
 
+# Install ripgrep (which multi-monitor uses)
+RUN apt install -y ripgrep
+
 # Run bash shell start up script (source cargo)
 COPY docker-helpers/startup.sh /
 RUN chmod +x /startup.sh

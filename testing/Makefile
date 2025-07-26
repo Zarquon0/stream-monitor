@@ -1,4 +1,7 @@
-.PHONY: dfa_builder
+.PHONY: dfa_builder multi-monitor
+
+multi-monitor:
+	cd ../multi-monitor && make monitor && cargo build --release
 
 dfa_builder:
 	cd ../regex-dfa-builder && mvn clean package
