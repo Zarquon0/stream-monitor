@@ -13,32 +13,20 @@ use monitor::Dfa;
 #[cfg(test)]
 mod tests;
 
-
-
 //OUTSTANDING TASKS/QUESTIONS
 //Test performance and speed up!
-//  -  Make performance test file - DONE (more or less)
-//  -  Replace regex library with quicker ripgrep regex engine/custom engine? Update: regex-automata is solution!
-//Ensure compliance with the entire range of stream types out there (account for any divergence with typical regex) - DONE: there is no divergence
-//  -  Are speedups acheivable if regex matching takes into account any limitations in the expressivity of the stream
-//     types w.r.t. standard regex? 
-//  -  Are stream types always fully specific (ie. could always be written as '^<stream_type>$')? - YES
-//Create Makefile to streamline binary creation/testing - DONE
-//Create README with explanation and usage instructions
-//Create more/better tests as additions continue
 //Figure out how input validation should work
-//Create external process execution monitor to halt entire script's execution upon monitor failure? 
 //Figure out how to handle errors that crop up from running input commands themselves
-//Monitor output from each individual member of a long piped command for more precise debugging?
-//  -  Related: Ensure system works with pipes (currently, it doesn't)... And redirects... If we don't want spin up a whole shell here, we're gonna need to get creative
-//Pipe validated output to stdout as received to maintain the benefits of a stream-based approach (instead of println!)
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    ///File path to serialized DFA - if not specified, no_validation must be true
+    ///File path to serialized DFA - if not specified, regex or no_validation must be set
     #[arg(short, required(false))]
     dfa_path: Option<PathBuf>,
+    ///Regular expression for validation instead of DFA
+    #[arg(short, required(false))]
+    regex: Option<String>,
     ///No validation will be performed (DFA defaults to a .* matcher) - mainly exists for development purposes
     #[arg(long, default_value_t=false)]
     no_validation: bool,
@@ -67,17 +55,20 @@ fn main() {
             }
         }
     };
-    let dfa: Box<dyn Automaton> = match args.dfa_path {
-        Some(path) => {
+    let dfa: Box<dyn Automaton> = match (args.dfa_path, args.regex, args.no_validation) {
+        (Some(path), None, false) => {
             let dfa = Dfa::deserialize(path);
             Box::new(dfa)
         },
-        None => {
-            if args.no_validation { Box::new(DFA::new(r".*").unwrap()) }
-            else { 
-                eprintln!("No DFA specified. Must either specify a DFA (via -d) or set --no-validation.");
-                exit(1)
-            }
+        (None, Some(regex), false) => {
+            Box::new(DFA::new(regex.as_str()).expect("Input regular expression invalid"))
+        },
+        (None, None, true) => {
+            Box::new(DFA::new(r".*").unwrap())
+        },
+        (_, _, _) => {
+            eprintln!("No DFA or regular expression specified or multiple validation modes specified. Must either specify a DFA (via -d), regex (via -r), or set --no-validation.");
+            exit(1)
         }
     };
     //Validate the stream and handle validation failure behavior
