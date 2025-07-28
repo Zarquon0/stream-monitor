@@ -1,5 +1,6 @@
 use clap::Parser;
-use std::{path::PathBuf, process::{Command, Stdio, exit}};
+use os_pipe::pipe;
+use std::{path::PathBuf, process::{exit, Command, Stdio}};
 use std::io::{self, BufReader, Read, Write, BufRead};
 use std::thread;
 
@@ -44,10 +45,10 @@ fn main() {
         Some((mon_binary_str, vec!["-r".to_string(), regex]))
         //Some(regex.clone().as_str())
     } else if let Some(regex) = args.grep {
-        grep_monitor("grep", "-Exc", regex);
+        streaming_grep_mon("grep", "-Ex", regex);
         None
     } else if let Some(regex) = args.ripgrep {
-        grep_monitor("rg", "-xc", regex);
+        streaming_grep_mon("rg", "-x", regex);
         None
     } else { panic!("Code is buggy - this branch should be impossible to reach") };
     if let Some((cmd, args)) = streamonitor_args {
@@ -61,13 +62,13 @@ fn main() {
     }
 }
 
-fn grep_monitor(grep_cmd: &str, options: &str, regex: String) {
+fn _nonstreaming_grep_monitor(grep_cmd: &str, options: &str, regex: String) {
     //Run grep command
     let mut grep_cmd = Command::new(grep_cmd)
-        .args([options, regex.as_str()]) // -E = use regex matching, -x = match on whole lines, -c = count matching lines
+        .args([options, "-c", regex.as_str()]) //Just need a count of matching lines
         .stdin(Stdio::piped())
-        .stdout(Stdio::piped()) // Direct child's stdout to ours
-        .stderr(Stdio::inherit()) // Same for stderr
+        .stdout(Stdio::piped()) 
+        .stderr(Stdio::inherit())
         .spawn().expect("Command failed to execute");
     //Pass stdin into the grep command while counting its lines
     let mut child_stdin = grep_cmd.stdin.take().expect("Failed to open child stdin");
@@ -103,4 +104,53 @@ fn grep_monitor(grep_cmd: &str, options: &str, regex: String) {
     for line in out_lines {
         writeln!(stdout_writer, "{}", line).expect("Failed to write line to stdout");
     }
+}
+
+fn streaming_grep_mon(grep_cmd: &str, options: &str, regex: String) {
+    //Run grep command
+    let mut grep_cmd = Command::new(grep_cmd)
+        .args([options, "-n", regex.as_str()]) //Line numbers will be needed for this implementation 
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped()) 
+        .stderr(Stdio::inherit())
+        .spawn().expect("Command failed to execute");
+    //Tee stdin into both child process and parent process (parent process only receives line numbers though)
+    let mut child_stdin = grep_cmd.stdin.take().expect("Failed to open child stdin");
+    let (reader, mut writer) = pipe().unwrap();
+    thread::spawn(move || {
+        let stdin_reader = io::stdin().lock();
+        //let mut stdout_writer = io::stdout().lock(); - For no overhead streaming implementation
+        let mut counter: u32 = 1;
+        for line_res in stdin_reader.lines() {
+            let line = line_res.expect("Error reading line of stdin");
+            writeln!(child_stdin, "{}", line).expect("Failed to write to child stdin"); //Write line to child
+            writer.write(&counter.to_le_bytes()).expect("Failed to write line number to parent"); //Write line number to parent
+            counter += 1;
+            //writeln!(stdout_writer, "{}", line).expect("Failed to write line to stdout"); - For no overhead streaming implementation
+        }
+    });
+    //Receive output from child and ensure that child line numbers match expected (if not we have a non-match)
+    let grep_stdout = grep_cmd.stdout.take().expect("Failed to capture stdout");
+    let grep_reader = BufReader::new(grep_stdout);
+    let mut counter_reader = BufReader::new(reader);
+    let mut line_no_buf = [0u8; 4];
+    let mut stdout_writer = io::stdout().lock();
+    for line_res in grep_reader.lines() {
+        let line = line_res.expect("Error reading line from child grep process");
+        let (grep_line_no_str, _rest) = line.split_once(':').expect("Line missing colon");
+        let grep_line_no = grep_line_no_str.parse::<u32>().expect("Line number unable to parse to u32");
+        counter_reader.read_exact(&mut line_no_buf).expect("Ran out of line numbers before lines from grep process...");
+        if grep_line_no != u32::from_le_bytes(line_no_buf) {
+            panic!("Validation Failed\nIncriminating Line Number: {}", u32::from_le_bytes(line_no_buf));
+        }
+        let line_wo_line_no = line.chars().skip(2).collect::<String>();
+        writeln!(stdout_writer, "{}", line_wo_line_no).expect("Failed to write line to stdout");
+    }
+    //Check to make sure that there are not still line numbers left in the pipe 
+    match counter_reader.read_exact(&mut line_no_buf) {
+        Ok(()) => panic!("Validation Failed\nIncriminating Line Number: {}", u32::from_le_bytes(line_no_buf)),
+        Err(ref e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {}, //This is the expected behavior of a valid match
+        Err(e) => panic!("Non EOF error reading line number: {}", e)
+    }
+
 }

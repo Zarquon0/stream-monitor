@@ -55,6 +55,7 @@ fn main() {
             }
         }
     };
+    let typ = if let Some(_) = &args.dfa_path {"DFA"} else {"Regex"};
     let dfa: Box<dyn Automaton> = match (args.dfa_path, args.regex, args.no_validation) {
         (Some(path), None, false) => {
             let dfa = Dfa::deserialize(path);
@@ -74,8 +75,8 @@ fn main() {
     //Validate the stream and handle validation failure behavior
     if let Err(e) = validate_stream(input_stream, dfa) {
         let msg = match e {
-            ValidationFailure::Partial(line) => format!("Validation failed (partial match)\nIncriminating line: {}", line),
-            ValidationFailure::Whole(line) => format!("Validation failed\nIncriminating line: {}", line),
+            ValidationFailure::Partial(line) => format!("Validation failed (partial match)\nIncriminating line: {}\nType: {}", line, typ),
+            ValidationFailure::Whole(line) => format!("Validation failed\nIncriminating line: {}\nType: {}", line, typ),
         };
         if args.trap { kill_shell(msg.as_str()).expect("Trap not properly set up (and validation failed)") }
         else { panic!("{}", msg) }

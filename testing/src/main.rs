@@ -18,6 +18,7 @@ const BENCHMARKS_CSV: &str = "benchmarks.csv";
 const RESULTS_CSV: &str = "benchmark_results.csv";
 const COMP_RESULTS_CSV: &str = "comp_benchmark_results.csv";
 const TRIALS: u8 = 5;
+const BAD_CHARS: [char; 2] = ['<','>'];
 static INSTANCE_COUNTER: AtomicU32 = AtomicU32::new(1);
 
 #[derive(Debug)]
@@ -83,18 +84,29 @@ impl BenchMark { //Core functionality for speed benchmarking w/ DFAs
     }
     fn make_dfa(&self) -> Result<PathBuf> {
         //Build JSON DFA representation out of type (regular expression)
+        let escaped_regex = Self::escape_bad_chars(&self.typ);
         let builder_out = Command::new("java")
-            .args(["-jar", self.proj_root.join(DFA_BUILDER_JAR).to_str().unwrap(), self.typ.as_str()])
+            .args(["-jar", self.proj_root.join(DFA_BUILDER_JAR).to_str().unwrap(), escaped_regex.as_str()])
             .current_dir(self.proj_root.join(DFA_CACHE))
             .output()?;
         if !builder_out.status.success() || !builder_out.stderr.is_empty() { return Err(Error::new(
             ErrorKind::InvalidData, 
-            format!("DFA builder errored\nTo debug, try running java -jar dfa-builder.jar {}", self.typ)
+            format!("DFA builder errored\nTo debug, try running java -jar dfa-builder.jar \"{}\"", escaped_regex)
         )) }
         let json_dfa_path = self.proj_root.join(DFA_CACHE).join(PathBuf::from(String::from_utf8_lossy(&builder_out.stdout).trim()));
         //Ok(json_dfa_path)
         //Deserialize into Dfa from JSON, then serialize into binary form (for quicker deserialization)
         Ok(Dfa::deserialize_from_json(json_dfa_path).serialize())
+    }
+    fn escape_bad_chars(regex: &String) -> String {
+        let mut escaped = String::new();
+        for c in regex.clone().chars() {
+            if BAD_CHARS.contains(&c) {
+                escaped.push('\\'); // Escape with backslash
+            }
+            escaped.push(c);
+        }
+        escaped
     }
     fn handle_test_res<T>(&self, test_res: Result<T>, msg: &str) -> Option<T> {
         match test_res {
