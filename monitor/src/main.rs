@@ -62,7 +62,7 @@ fn main() {
             Box::new(dfa)
         },
         (None, Some(regex), false) => {
-            Box::new(DFA::new(regex.as_str()).expect("Input regular expression invalid"))
+            Box::new(DFA::new(format!("^(?:{})$",regex).as_str()).expect("Input regular expression invalid"))
         },
         (None, None, true) => {
             Box::new(DFA::new(r".*").unwrap())
@@ -98,7 +98,7 @@ fn validate_stream(stream: Box<dyn BufRead>, dfa: Box<dyn Automaton>) -> Result<
         if stream_empty { stream_empty = false; }
         let line = line.expect("Error grabbing next line");
         //let _state = dfa.start_state(&Config::new()).expect("Couldn't bring DFA to start state");
-        match dfa.try_search_fwd(&Input::new(&line.as_bytes())).expect("DFA search errored") {
+        match dfa.try_search_fwd(&Input::new(&line.as_bytes())).expect("DFA search errored") { //try_search_fwd() is not guaranteed to find the longest match unless regex is anchored!!!
             Some(mtch) => {
                 if mtch == HalfMatch::must(0, line.len()) { println!("{}", line.as_str()) } //Write line to stdout - done line by line to preserve streaming
                 else { return Err(ValidationFailure::Partial(line)) }

@@ -100,12 +100,15 @@ impl BenchMark { //Core functionality for speed benchmarking w/ DFAs
     }
     fn escape_bad_chars(regex: &String) -> String {
         let mut escaped = String::new();
+        //escaped.push('^');
         for c in regex.clone().chars() {
             if BAD_CHARS.contains(&c) {
                 escaped.push('\\'); // Escape with backslash
             }
             escaped.push(c);
         }
+        //escaped.push('$');
+        //println!("{}",escaped);
         escaped
     }
     fn handle_test_res<T>(&self, test_res: Result<T>, msg: &str) -> Option<T> {
@@ -140,9 +143,9 @@ impl BenchMark { //Functionality for implementation comparative benchmarking
                 let dfa_path = self.handle_test_res(self.make_dfa(), "DFA creation failed")?;
                 format!("-d {}", dfa_path.to_str().unwrap())
             }
-            Mode::Regex => format!("-r \"{}\"", self.typ),
-            Mode::Grep => format!("-g \"{}\"", self.typ),
-            Mode::Ripgrep => format!("-R \"{}\"", self.typ),
+            Mode::Regex => format!("-r \'{}\'", self.typ),
+            Mode::Grep => format!("-g \'{}\'", self.typ),
+            Mode::Ripgrep => format!("-R \'{}\'", self.typ),
         };
         let test_res = Self::time_exec(format!(
             "{} | {} {}", 
