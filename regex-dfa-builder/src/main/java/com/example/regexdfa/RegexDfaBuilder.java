@@ -13,11 +13,11 @@ import dk.brics.automaton.Transition;
 public class RegexDfaBuilder {
     
     public static void main(String[] args) {
-        if (args.length == 0) {
+        if (args.length == 0 || args.length > 2) {
             System.err.println("❗ Please provide a regular expression as a command-line argument.");
             System.err.println("👉 Usage: java RegexDfaDemo \"<regular expression>\"");
             return;
-        }
+        } 
 
         String inputRegex = args[0];
 
@@ -50,7 +50,7 @@ public class RegexDfaBuilder {
             // System.out.println("\nStep 5: Completing DFA (adding garbage state for missing transitions)...");
             // intersectedAutomaton = completeDfa(intersectedAutomaton);
             // System.out.println("Completed DFA has " + intersectedAutomaton.getNumberOfStates() + " states");
-            
+
             // Step 6: Serialize to JSON
             // System.out.println("\nStep 6: Serializing to JSON...");
             String hash = sha256Hex(inputRegex).substring(0, 8);  // Use first 8 chars

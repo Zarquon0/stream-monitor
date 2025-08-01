@@ -14,10 +14,10 @@ const MON_BINARY: &str = "../target/release/monitor";
 const MULTIMON_BINARY: &str = "../target/release/multi-monitor";
 const DFA_BUILDER_JAR: &str = "dfa-builder.jar";
 const DFA_CACHE: &str = "dfa-cache";
-const BENCHMARKS_CSV: &str = "benchmarks.csv";
-const RESULTS_CSV: &str = "benchmark_results.csv";
-const COMP_RESULTS_CSV: &str = "comp_benchmark_results.csv";
-const TRIALS: u8 = 5;
+const BENCHMARKS_CSV: &str = "benchmarks-and-results/benchmarks2.csv";
+const RESULTS_CSV: &str = "benchmarks-and-results/benchmark_results2.csv";
+const COMP_RESULTS_CSV: &str = "benchmarks-and-results/comp_benchmark_results2.csv";
+const TRIALS: u8 = 10;
 const BAD_CHARS: [char; 2] = ['<','>'];
 static INSTANCE_COUNTER: AtomicU32 = AtomicU32::new(1);
 
@@ -47,9 +47,10 @@ impl BenchMark { //Core functionality for speed benchmarking w/ DFAs
     fn bench(&self) -> Option<BenchRes> {
         let mut raw_times = Vec::new();
         let mut mon_times = Vec::new();
+        let dfa_path = self.handle_test_res(self.make_dfa(), "DFA creation failed")?;
         for _ in 0..TRIALS {
             raw_times.push(self.time_raw()?);
-            let (mon_stat, mon_time) = self.time_mon()?;
+            let (mon_stat, mon_time) = self.time_mon(&dfa_path)?;
             if !mon_stat.success() {
                 eprintln!("\nBenchmark {} Failed! (See above ^^^)\nCommand: {}\nType: {}", self.num, self.cmd, self.typ);
                 return None
@@ -73,8 +74,7 @@ impl BenchMark { //Core functionality for speed benchmarking w/ DFAs
         let full_res = self.handle_test_res(test_res, "Running command raw failed")?;
         Some(full_res.1)
     }
-    fn time_mon(&self) -> Option<(ExitStatus, Duration)> { 
-        let dfa_path = self.handle_test_res(self.make_dfa(), "DFA creation failed")?;
+    fn time_mon(&self, dfa_path: &PathBuf) -> Option<(ExitStatus, Duration)> { 
         let test_res = Self::time_exec(format!(
             "{} | {} -d {}", 
             self.cmd, 
